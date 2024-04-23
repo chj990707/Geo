@@ -5,30 +5,54 @@ using UnityEngine;
 public abstract class CrackableBlock : Block
 {
     abstract protected float hardness { get; }
-    protected Vector3[] crackDirections = new Vector3[]
-        { new Vector3(1, 0, 0),
-        new Vector3(-1, 0, 0),
-        new Vector3(0, 1, 0),
-        new Vector3(0, -1, 0),
-        new Vector3(0, 0, 1),
-        new Vector3(0, 0, -1) };
+    protected Vector3Int[] crackDirections = new Vector3Int[]
+        { new Vector3Int(1, 0, 0),
+        new Vector3Int(-1, 0, 0),
+        new Vector3Int(0, 1, 0),
+        new Vector3Int(0, -1, 0),
+        new Vector3Int(0, 0, 1),
+        new Vector3Int(0, 0, -1) };
     [SerializeField]
     private GameObject crackResult;
 
-    public virtual void crackPropagate(float force, Vector3 forceFrom)
+    protected class CrackStress {
+        public CrackableBlock block;
+        public float force;
+        public Vector3 forceDirection;
+
+        public CrackStress(CrackableBlock block, float force, Vector3 forceDirection)
+        {
+            this.block = block;
+            this.force = force;
+            this.forceDirection = forceDirection;
+        }
+    }
+
+    public virtual void crackStart(float force, Vector3 forceDirection)
+    {
+        Queue<CrackStress> CrackStressQueue = new Queue<CrackStress>();
+        CrackStressQueue.Enqueue(new CrackStress(this, force, forceDirection));
+        while(CrackStressQueue.Count > 0)
+        {
+            CrackStress nextCrackStress = CrackStressQueue.Dequeue();
+            nextCrackStress.block.crackPropagate(nextCrackStress.force, nextCrackStress.forceDirection, CrackStressQueue);
+        }
+    }
+
+    protected virtual void crackPropagate(float force, Vector3 forceDirection, Queue<CrackStress> CrackStressQueue)
     {
         if (hardness < force)
         {
             float remainingforce = force - hardness;
-            Vector3 normalizedforceFrom = Vector3.Normalize(forceFrom);
+            Vector3 normalizedforceDirection = Vector3.Normalize(forceDirection);
             float[] crackforce = new float[crackDirections.Length];
             float crackforcesum = 0f;
             for(int i = 0; i < crackDirections.Length; i++)
             {
-                Vector3 nextCrackDirection = crackDirections[i];
-                Block nextBlock = gridManager.getBlock(x + (int)nextCrackDirection.x, y + (int)nextCrackDirection.y, z + (int)nextCrackDirection.z);
+                Vector3Int nextCrackDirection = crackDirections[i];
+                Block nextBlock = gridManager.getBlock(x + nextCrackDirection.x, y + nextCrackDirection.y, z + nextCrackDirection.z);
                 
-                if (Vector3.Dot(nextCrackDirection, normalizedforceFrom) >= 0.5f)
+                if (Vector3.Dot(nextCrackDirection, normalizedforceDirection) >= 0.5f)
                 {
                     if (nextBlock != null && nextBlock is CrackableBlock)
                     {
@@ -41,7 +65,7 @@ public abstract class CrackableBlock : Block
                         crackforcesum += 5f;
                     }
                 }
-                else if (Vector3.Dot(nextCrackDirection, normalizedforceFrom) <= -0.5f) continue;
+                else if (Vector3.Dot(nextCrackDirection, normalizedforceDirection) <= -0.5f) continue;
                 else
                 {
                     if (nextBlock != null && nextBlock is CrackableBlock)
@@ -65,7 +89,7 @@ public abstract class CrackableBlock : Block
                 Block nextBlock = gridManager.getBlock(x + (int)nextCrackDirection.x, y + (int)nextCrackDirection.y, z + (int)nextCrackDirection.z);
                 if(nextBlock != null && nextBlock is CrackableBlock)
                 {
-                    ((CrackableBlock)nextBlock).crackPropagate(remainingforce * crackforce[i] / crackforcesum, nextCrackDirection);
+                    CrackStressQueue.Enqueue(new CrackStress((CrackableBlock)nextBlock, remainingforce * crackforce[i] / crackforcesum, nextCrackDirection));
                 }
             }
             Block[] adjacentBlocks = getAdjacentBlocks();

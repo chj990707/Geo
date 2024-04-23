@@ -57,7 +57,7 @@ public class GridManager : MonoBehaviour
                 }
             }
         }
-        ((Stone)blocks[6, 11, 6]).crackPropagate(200f, new Vector3(0, -1, 0));
+        ((Stone)blocks[6, 11, 6]).crackStart(200f, new Vector3(0, -1, 0));
     }
 
     public void setBlock(int x, int y, int z, Block block)
